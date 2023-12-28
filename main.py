@@ -6,10 +6,11 @@ import numpy as np
 import torch
 import lightning as L
 import torchvision as torchvision
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader,IterableDataset
 from lightning.pytorch.utilities.types import OptimizerLRScheduler
 from lightning.pytorch.loggers import TensorBoardLogger
-
+from pytorch_lightning.loggers import WandbLogger
+# import wandb
 
 
 class LayerNormHelper(L.LightningModule):
@@ -20,33 +21,36 @@ class LayerNormHelper(L.LightningModule):
         return torch.nn.LayerNorm(x.shape[1:])(x)
 
 class Generator(L.LightningModule):
-    def __init__(self, depth=1, noise_size=(8,8), noise_channels=1):
+    def __init__(self, depth=1, noise_size=(4,4), noise_channels=1):
         super().__init__()
         self.noise_size=noise_size
         self.noise_channels=noise_channels
         self.depth=depth
         # 3x32x32 of gaussian noise
         self.initial=torch.nn.Sequential(
-            torch.nn.ConvTranspose2d(in_channels=noise_channels, out_channels=64, kernel_size=5, stride=1),
-            torch.nn.ReLU(),
+            torch.nn.ConvTranspose2d(in_channels=noise_channels, out_channels=64, kernel_size=3, stride=1),
+            torch.nn.LeakyReLU(),
             torch.nn.BatchNorm2d(64)
         )
+        # +2
 
         self.block = torch.nn.ModuleList([torch.nn.Sequential(
             torch.nn.ConvTranspose2d(in_channels=64, out_channels=64, kernel_size=2, stride=1),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(),
+            torch.nn.BatchNorm2d(64),
+            torch.nn.ConvTranspose2d(in_channels=64, out_channels=64, kernel_size=2, stride=1),
+            torch.nn.LeakyReLU(),
             torch.nn.BatchNorm2d(64),
             torch.nn.ConvTranspose2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
-            torch.nn.ReLU(),
-            torch.nn.BatchNorm2d(64),
-            torch.nn.ConvTranspose2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(),
             torch.nn.BatchNorm2d(64)
-        ) for index in range(5)])
+        ) for index in range(2)])
+        # +8
         # Convert to 32x32x3
         self.final=torch.nn.Sequential(
-            torch.nn.ConvTranspose2d(in_channels=64, out_channels=3, kernel_size=3, stride=1, padding=1),
-            torch.nn.ReLU(),
+            torch.nn.ConvTranspose2d(in_channels=64, out_channels=3, kernel_size=3),
+            # +2
+            torch.nn.LeakyReLU(),
         )
 
     def forward(self, x) -> torch.Tensor:
@@ -58,30 +62,30 @@ class Generator(L.LightningModule):
 
 class Discriminator(torch.nn.Module):
 
-    def __init__(self,depth=1):
+    def __init__(self,depth=1, image_size=(32,32)):
         super().__init__()
         self.depth=depth
-
+        self.image_size=image_size
         self.initial = torch.nn.Sequential(
             torch.nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, stride=1, padding=1),
-            torch.nn.ReLU(),
-            torch.nn.LayerNorm([64, 32, 32])
+            torch.nn.LeakyReLU(),
+            torch.nn.LayerNorm([64,*image_size])
         )
 
         self.block = torch.nn.ModuleList([torch.nn.Sequential(
             torch.nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
-            torch.nn.ReLU(),
-            torch.nn.LayerNorm([64,32,32])
+            torch.nn.LeakyReLU(),
+            torch.nn.LayerNorm([64,*image_size])
         ) for _ in range(self.depth)])
 
         # 32x32x64 to 1
         self.final=torch.nn.Sequential(
             torch.nn.Conv2d(in_channels=64, out_channels=1, kernel_size=3, stride=1, padding=1),
-            torch.nn.ReLU(),
-            torch.nn.LayerNorm([1,32,32]),
+            torch.nn.LeakyReLU(),
+            torch.nn.LayerNorm([1,*image_size]),
             torch.nn.Flatten(),
-            torch.nn.Linear(32*32,1),
-            torch.nn.ReLU()
+            torch.nn.Linear(image_size[0]*image_size[1],1),
+            torch.nn.LeakyReLU()
         )
 
     def forward(self, x) -> torch.Tensor:
@@ -146,23 +150,12 @@ class ImprovedWassersteinGAN(L.LightningModule):
         gan_optimizer, dis_optimizer = self.optimizers()
 
         # Create a uniform distribution of size 1 to signify if we should train the discriminator or generator
-        gen_train: bool = torch.rand(1).item() < 0.3
-
-        if gen_train:
 
 
-            noise = torch.randn(self.noise_size(batch_size=batch[0].shape[0]),device=self.device, dtype=self.dtype)
-            fake_images = self.generator(noise)
-            fake_scores = self.discriminator(fake_images)
-            gen_loss = -torch.mean(fake_scores)
-            gan_optimizer.zero_grad()
-            gen_loss.backward()
-            gan_optimizer.step()
-            self.log("gen_loss", gen_loss)
 
 
-        else:
 
+        for _ in range(10):
             # Create random noise for the generator at size batch
             noise=torch.randn(self.noise_size(batch_size=batch[0].shape[0]),device=self.device, dtype=self.dtype)
             # Generate fake images
@@ -186,13 +179,26 @@ class ImprovedWassersteinGAN(L.LightningModule):
             dis_optimizer.zero_grad()
             dis_loss.backward()
             dis_optimizer.step()
-            self.log("dis_loss", dis_loss)
+            self.logger.log_metrics({"dis_loss":dis_loss},self.global_step)
+            self.log("dis_loss", dis_loss, True,False)
+
+
+        noise = torch.randn(self.noise_size(batch_size=batch[0].shape[0]),device=self.device, dtype=self.dtype)
+        fake_images = self.generator(noise)
+        fake_scores = self.discriminator(fake_images)
+        gen_loss = -torch.mean(fake_scores)
+        gan_optimizer.zero_grad()
+        gen_loss.backward()
+        gan_optimizer.step()
+        self.logger.log_metrics({"gen_loss": gen_loss}, self.global_step)
+        self.log("gen_loss", gen_loss,True,False)
 
 
         if self.counter%10==0:
-            fake_image:PIL.Image=torch_to_image(fake_images[0])
+            # fake_image:PIL.Image=torchvision.transforms.ToPILImage(fake_images[0])
             # Image to tensorboard
-            self.logger.experiment.add_image("fake_image",torchvision.transforms.ToTensor()(fake_image),self.global_step)
+            self.logger.experiment.add_image("fake_image",fake_images[0],self.global_step)
+
 
 
         self.counter+=1
@@ -204,32 +210,40 @@ class ImprovedWassersteinGAN(L.LightningModule):
 
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
-        gan_optimizer = torch.optim.Adam(self.generator.parameters(), lr=1e-4)
-        dis_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=1e-4)
+        gan_optimizer = torch.optim.Adam(self.generator.parameters(), lr=1e-3)
+        dis_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=1e-2)
         return [gan_optimizer, dis_optimizer], []
 
 
 if __name__ == "__main__":
+    # wandb.login()
 
     transforms=torchvision.transforms.Compose([
-        torchvision.transforms.ToTensor(),
-        torchvision.transforms.Normalize(mean=(0.5,0.5,0.5),std=(0.5,0.5,0.5))
+        torchvision.transforms.PILToTensor(),
+        torchvision.transforms.Resize((16, 16)),
+        lambda x: x/255.0,
+
+        # torchvision.transforms.Normalize(mean=(0.5,0.5,0.5),std=(0.5,0.5,0.5))
+
     ])
 
     tensorboard_logger = TensorBoardLogger('logs/')
+    wandb_logger = WandbLogger(project="Improved Training of Wasserstein GANs", offline=True)
 
     cifar100=torchvision.datasets.CIFAR100('./train/', download=True, train=True, transform=transforms)
-    trainer = L.Trainer(logger=[tensorboard_logger], precision=16)
+    trainer = L.Trainer(logger=[
+        tensorboard_logger,
+        wandb_logger
+    ], precision=16)
     # Get one class from cifar100
-    cifar100 = torch.utils.data.Subset(cifar100, [i for i in range(len(cifar100)) if cifar100[i][1] == 0])
+    cifar100 = torch.utils.data.Subset(cifar100, [i for i in range(len(cifar100)) if cifar100[i][1] == 98])
+    # Convert to Dataset
+    cifar100 = torch.utils.data.TensorDataset(torch.stack([x[0] for x in cifar100]))
     # Convert to dataloader
-    cifar100 = torch.utils.data.DataLoader(cifar100, batch_size=500, shuffle=True)
+    cifar100 = torch.utils.data.DataLoader(cifar100, batch_size=100, shuffle=True, num_workers=9)
 
 
-
-
-
-    trainer.fit(ImprovedWassersteinGAN(Generator(depth=10), Discriminator(depth=10)), cifar100)
+    trainer.fit(ImprovedWassersteinGAN(Generator(depth=10), Discriminator(depth=10,image_size=(16,16))), cifar100)
 
 
 
