@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader,IterableDataset
 from lightning.pytorch.utilities.types import OptimizerLRScheduler
 from lightning.pytorch.loggers import TensorBoardLogger
 from pytorch_lightning.loggers import WandbLogger
-# import wandb
+import wandb
 
 
 class LayerNormHelper(L.LightningModule):
@@ -210,13 +210,13 @@ class ImprovedWassersteinGAN(L.LightningModule):
 
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
-        gan_optimizer = torch.optim.Adam(self.generator.parameters(), lr=1e-3)
-        dis_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=1e-2)
+        gan_optimizer = torch.optim.Adam(self.generator.parameters(), lr=1e-4)
+        dis_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=1e-4)
         return [gan_optimizer, dis_optimizer], []
 
 
 if __name__ == "__main__":
-    # wandb.login()
+    wandb.login()
 
     transforms=torchvision.transforms.Compose([
         torchvision.transforms.PILToTensor(),
@@ -227,20 +227,20 @@ if __name__ == "__main__":
     ])
 
     tensorboard_logger = TensorBoardLogger('logs/')
-    wandb_logger = WandbLogger(project="Improved Training of Wasserstein GANs", offline=True)
+    wandb_logger = WandbLogger(project="Improved Training of Wasserstein GANs")
 
     cifar100=torchvision.datasets.CIFAR100('./train/', download=True, train=True, transform=transforms)
     trainer = L.Trainer(logger=[
         tensorboard_logger,
         wandb_logger
-    ])
+    ],max_epochs=-1)
     # Get one class from cifar100
     cifar100 = torch.utils.data.Subset(cifar100, [i for i in range(len(cifar100)) if cifar100[i][1] == 98])
     # Convert to Dataset
     cifar100 = torch.utils.data.TensorDataset(torch.stack([x[0] for x in cifar100]))
     # Convert to dataloader
-    cifar100 = torch.utils.data.DataLoader(cifar100, batch_size=100, shuffle=True, num_workers=9)
-
+    cifar100 = torch.utils.data.DataLoader(cifar100, batch_size=5, shuffle=True, num_workers=8)
+    torch.set_float32_matmul_precision('medium')
 
     trainer.fit(ImprovedWassersteinGAN(Generator(depth=10), Discriminator(depth=10,image_size=(32,32))), cifar100)
 
