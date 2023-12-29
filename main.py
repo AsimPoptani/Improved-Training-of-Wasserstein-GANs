@@ -212,7 +212,6 @@ if __name__ == "__main__":
         wandb_logger
     ],
         max_epochs=-1,
-        precision="bf16"
     )
 
     # Get one class from cifar100
@@ -220,7 +219,7 @@ if __name__ == "__main__":
     # Convert to Dataset
     cifar100 = torch.utils.data.TensorDataset(torch.stack([x[0] for x in cifar100]))
     # Convert to dataloader
-    cifar100 = torch.utils.data.DataLoader(cifar100, batch_size=5, shuffle=True, num_workers=8, pin_memory=True)
+    cifar100 = torch.utils.data.DataLoader(cifar100, batch_size=500, shuffle=True, num_workers=8, pin_memory=True)
     torch.set_float32_matmul_precision('medium')
 
     trainer.fit(ImprovedWassersteinGAN(Generator(depth=2), Discriminator(depth=3,image_size=(32,32))), cifar100)
