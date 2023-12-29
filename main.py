@@ -98,6 +98,8 @@ class ImprovedWassersteinGAN(L.LightningModule):
         self.automatic_optimization = False
         self.counter=0
         self.noise_size=lambda batch_size:[batch_size,self.generator.noise_channels,*self.generator.noise_size]
+        # To generate a 10x10 grid of images
+        self.test_noise=torch.randn(self.noise_size(100),device=self.device,requires_grad=False,dtype=self.dtype)
 
 
     def improved_wasserstein_loss(self,fake_scores, interpolated_scores,interpolated_images,lambda_=10):
@@ -167,12 +169,12 @@ class ImprovedWassersteinGAN(L.LightningModule):
 
 
         if self.counter%10==0:
-            # fake_image:PIL.Image=torchvision.transforms.ToPILImage(fake_images[0])
-            # Image to tensorboard
-            self.logger.experiment.add_image("fake_image",fake_images[0],self.global_step)
-
-
-
+            with torch.no_grad():
+                test_images=self.generator(self.test_noise)
+                # Create a grid of images
+                grid=torchvision.utils.make_grid(test_images,nrow=10)
+                # Image to tensorboard
+                self.logger.experiment.add_image("fake_image",grid,self.global_step)
         self.counter+=1
 
 
@@ -207,7 +209,8 @@ if __name__ == "__main__":
         wandb_logger
     ],
         max_epochs=-1,
-        precision="bf16")
+        precision="bf16"
+    )
 
     # Get one class from cifar100
     cifar100 = torch.utils.data.Subset(cifar100, [i for i in range(len(cifar100)) if cifar100[i][1] == 98])
