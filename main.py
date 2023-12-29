@@ -170,6 +170,9 @@ class ImprovedWassersteinGAN(L.LightningModule):
 
         if self.counter%10==0:
             with torch.no_grad():
+
+                self.test_noise=self.test_noise.to(self.device)
+
                 test_images=self.generator(self.test_noise)
                 # Create a grid of images
                 grid=torchvision.utils.make_grid(test_images,nrow=10)
