@@ -21,44 +21,38 @@ class LayerNormHelper(L.LightningModule):
         return torch.nn.LayerNorm(x.shape[1:])(x)
 
 class Generator(L.LightningModule):
-    def __init__(self, depth=1, noise_size=(8,8), noise_channels=1):
+    def __init__(self, depth=1, noise_size=(1,1), noise_channels=100):
         super().__init__()
+
         self.noise_size=noise_size
         self.noise_channels=noise_channels
-        self.depth=depth
-        # 3x32x32 of gaussian noise
-        self.initial=torch.nn.Sequential(
-            torch.nn.ConvTranspose2d(in_channels=noise_channels, out_channels=64, kernel_size=5, stride=1),
-            torch.nn.LeakyReLU(),
-            torch.nn.BatchNorm2d(64)
-        )
-        # +2
+        self.fire_power=2**depth
 
-        self.block = torch.nn.ModuleList([torch.nn.Sequential(
-            torch.nn.ConvTranspose2d(in_channels=64, out_channels=64, kernel_size=2, stride=1),
+        # Input: 100x1x1
+
+        # Dense layer
+        self.model=torch.nn.Sequential(
+            torch.nn.ConvTranspose2d(in_channels=noise_channels, out_channels=self.fire_power*8, kernel_size=4, stride=1),
             torch.nn.LeakyReLU(),
-            torch.nn.BatchNorm2d(64),
-            torch.nn.ConvTranspose2d(in_channels=64, out_channels=64, kernel_size=2, stride=1),
+            torch.nn.LayerNorm([self.fire_power*8,4,4]),
+            torch.nn.ConvTranspose2d(in_channels=self.fire_power*8, out_channels=self.fire_power*4, kernel_size=4, stride=2,padding=1),
             torch.nn.LeakyReLU(),
-            torch.nn.BatchNorm2d(64),
-            torch.nn.ConvTranspose2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
+            torch.nn.LayerNorm([self.fire_power*4,8,8]),
+            torch.nn.ConvTranspose2d(in_channels=self.fire_power*4, out_channels=self.fire_power*2, kernel_size=4, stride=2,padding=1),
             torch.nn.LeakyReLU(),
-            torch.nn.BatchNorm2d(64)
-        ) for index in range(4)])
-        # +8
-        # Convert to 32x32x3
-        self.final=torch.nn.Sequential(
-            torch.nn.ConvTranspose2d(in_channels=64, out_channels=3, kernel_size=5),
-            # +2
+            torch.nn.LayerNorm([self.fire_power*2,16,16]),
+            torch.nn.ConvTranspose2d(in_channels=self.fire_power*2, out_channels=self.fire_power, kernel_size=4, stride=2, padding=1),
             torch.nn.LeakyReLU(),
+            torch.nn.LayerNorm([self.fire_power,32,32]),
+            torch.nn.ConvTranspose2d(in_channels=self.fire_power, out_channels=3, kernel_size=1, stride=1, padding=0),
+            torch.nn.ReLU(),
         )
+
+
+
 
     def forward(self, x) -> torch.Tensor:
-        x=self.initial(x)
-        for nn in self.block:
-            x=nn(x)
-        x=self.final(x)
-        return x
+        return self.model(x)
 
 class Discriminator(torch.nn.Module):
 
@@ -66,56 +60,34 @@ class Discriminator(torch.nn.Module):
         super().__init__()
         self.depth=depth
         self.image_size=image_size
-        self.initial = torch.nn.Sequential(
-            torch.nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, stride=1, padding=1),
-            torch.nn.LeakyReLU(),
-            torch.nn.LayerNorm([64,*image_size])
-        )
+        self.fire_power=2**depth
 
-        self.block = torch.nn.ModuleList([torch.nn.Sequential(
-            torch.nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
+        self.model=torch.nn.Sequential(
+            # 32x32x3
+            torch.nn.Conv2d(in_channels=3, out_channels=self.fire_power, kernel_size=1, stride=1, padding=0),
             torch.nn.LeakyReLU(),
-            torch.nn.LayerNorm([64,*image_size])
-        ) for _ in range(self.depth)])
-
-        # 32x32x64 to 1
-        self.final=torch.nn.Sequential(
-            torch.nn.Conv2d(in_channels=64, out_channels=1, kernel_size=3, stride=1, padding=1),
+            torch.nn.LayerNorm([self.fire_power,32,32]),
+            # 16x16x64
+            torch.nn.Conv2d(in_channels=self.fire_power, out_channels=self.fire_power*2, kernel_size=4, stride=2, padding=1),
             torch.nn.LeakyReLU(),
-            torch.nn.LayerNorm([1,*image_size]),
-            torch.nn.Flatten(),
-            torch.nn.Linear(image_size[0]*image_size[1],1),
+            torch.nn.LayerNorm([self.fire_power*2,16,16]),
+            # 8x8x128
+            torch.nn.Conv2d(in_channels=self.fire_power*2, out_channels=self.fire_power*4, kernel_size=4, stride=2, padding=1),
+            torch.nn.LeakyReLU(),
+            torch.nn.LayerNorm([self.fire_power*4,8,8]),
+            # 4x4x256
+            torch.nn.Conv2d(in_channels=self.fire_power*4, out_channels=self.fire_power*8, kernel_size=4, stride=2, padding=1),
+            torch.nn.LeakyReLU(),
+            torch.nn.LayerNorm([self.fire_power*8,4,4]),
+            # 1x1x512
+            torch.nn.Conv2d(in_channels=self.fire_power*8, out_channels=1, kernel_size=4, stride=1, padding=0),
             torch.nn.LeakyReLU()
         )
 
+
+
     def forward(self, x) -> torch.Tensor:
-        x=self.initial(x)
-        for nn in self.block:
-            skip = x
-            x = nn(x)
-            x += skip
-        x=self.final(x)
-        return x
-
-
-
-def torch_to_image(x: torch.tensor) -> PIL.Image:
-    # Detach from graph and move to cpu
-    x=x.detach().cpu()
-    # Convert to 0 to 1
-    x=(x-x.min())/(x.max()-x.min())
-
-    # Reshape to 32x32x3
-    x=x.reshape(32,32,3)
-
-    # Convert to PIL image
-    x=Image.fromarray(np.uint8(x.numpy()*255))
-    return x
-
-
-
-
-
+        return self.model(x)
 
 
 class ImprovedWassersteinGAN(L.LightningModule):
@@ -233,16 +205,19 @@ if __name__ == "__main__":
     trainer = L.Trainer(logger=[
         tensorboard_logger,
         wandb_logger
-    ],max_epochs=-1)
+    ],
+        max_epochs=-1,
+        precision="bf16")
+
     # Get one class from cifar100
     cifar100 = torch.utils.data.Subset(cifar100, [i for i in range(len(cifar100)) if cifar100[i][1] == 98])
     # Convert to Dataset
     cifar100 = torch.utils.data.TensorDataset(torch.stack([x[0] for x in cifar100]))
     # Convert to dataloader
-    cifar100 = torch.utils.data.DataLoader(cifar100, batch_size=5, shuffle=True, num_workers=8)
+    cifar100 = torch.utils.data.DataLoader(cifar100, batch_size=5, shuffle=True, num_workers=8, pin_memory=True)
     torch.set_float32_matmul_precision('medium')
 
-    trainer.fit(ImprovedWassersteinGAN(Generator(depth=10), Discriminator(depth=10,image_size=(32,32))), cifar100)
+    trainer.fit(ImprovedWassersteinGAN(Generator(depth=2), Discriminator(depth=3,image_size=(32,32))), cifar100)
 
 
 
