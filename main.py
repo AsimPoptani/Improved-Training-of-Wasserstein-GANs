@@ -187,8 +187,8 @@ class ImprovedWassersteinGAN(L.LightningModule):
 
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
-        gan_optimizer = torch.optim.SGD(self.generator.parameters(), lr=1e-4)
-        dis_optimizer = torch.optim.SGD(self.discriminator.parameters(), lr=1e-4)
+        gan_optimizer = torch.optim.SGD(self.generator.parameters(), lr=1e-4, momentum=0.09)
+        dis_optimizer = torch.optim.SGD(self.discriminator.parameters(), lr=1e-4, momentum=0.09)
         return [gan_optimizer, dis_optimizer], []
 
 
