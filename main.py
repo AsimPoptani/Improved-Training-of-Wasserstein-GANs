@@ -139,14 +139,14 @@ class ImprovedWassersteinGAN(L.LightningModule):
             # Create alpha with size batch, 1
             alpha=torch.rand(batch[0].shape[0],1,1,1,device=self.device, dtype=self.dtype)
             # Create interpolated images
-            interpolated_images=(alpha*batch[0]+(1-alpha)*fake_images).requires_grad_(True)
+            # interpolated_images=(alpha*batch[0]+(1-alpha)*fake_images).requires_grad_(True)
             # Discriminate the interpolated images
-            interpolated_scores=self.discriminator(interpolated_images)
+            interpolated_scores=self.discriminator(fake_images)
             # Calculate the loss
             dis_loss=self.improved_wasserstein_loss(
                 fake_scores=fake_scores,
                 interpolated_scores=interpolated_scores,
-                interpolated_images=interpolated_images
+                interpolated_images=fake_images
             ).mean()
 
             # Update the discriminator
