@@ -226,7 +226,7 @@ if __name__ == "__main__":
         wandb_logger,
     ],
         profiler="advanced",
-        max_epochs=-1,
+        max_epochs=10,
     )
 
     # Get one class from cifar100
