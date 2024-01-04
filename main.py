@@ -180,7 +180,10 @@ class ImprovedWassersteinGAN(L.LightningModule):
                 self.logger.experiment.add_image("fake_image",grid,self.global_step)
         self.counter+=1
 
-
+        # Schedule the learning rate
+        gan_scheduler, dis_scheduler = self.lr_schedulers()
+        gan_scheduler.step()
+        dis_scheduler.step()
 
 
 
@@ -189,7 +192,14 @@ class ImprovedWassersteinGAN(L.LightningModule):
     def configure_optimizers(self) -> OptimizerLRScheduler:
         gan_optimizer = torch.optim.SGD(self.generator.parameters(), lr=1e-4, momentum=0.09)
         dis_optimizer = torch.optim.SGD(self.discriminator.parameters(), lr=1e-4, momentum=0.09)
-        return [gan_optimizer, dis_optimizer], []
+
+        # Gan scheduler
+        gan_scheduler = torch.optim.lr_scheduler.MultiStepLR(gan_optimizer, milestones=[100,200,400,800,1600], gamma=0.1)
+        # Dis scheduler
+        dis_scheduler = torch.optim.lr_scheduler.MultiStepLR(dis_optimizer, milestones=[100,200,400,800,1600], gamma=0.1)
+
+
+        return [gan_optimizer, dis_optimizer], [gan_scheduler, dis_scheduler]
 
 
 if __name__ == "__main__":
