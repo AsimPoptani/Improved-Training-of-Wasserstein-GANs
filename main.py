@@ -168,7 +168,7 @@ class ImprovedWassersteinGAN(L.LightningModule):
         self.log("gen_loss", gen_loss,True,False)
 
 
-        if self.counter%10==0:
+        if self.counter%3==0:
             with torch.no_grad():
 
                 self.test_noise=self.test_noise.to(self.device)
@@ -178,12 +178,15 @@ class ImprovedWassersteinGAN(L.LightningModule):
                 grid=torchvision.utils.make_grid(test_images,nrow=10)
                 # Image to tensorboard
                 self.logger.experiment.add_image("fake_image",grid,self.global_step)
-        self.counter+=1
 
-        # Schedule the learning rate
-        gan_scheduler, dis_scheduler = self.lr_schedulers()
-        gan_scheduler.step()
-        dis_scheduler.step()
+        if self.counter % 5 == 0:
+            # Schedule the learning rate
+            gan_scheduler, dis_scheduler = self.lr_schedulers()
+            gan_scheduler.step()
+            dis_scheduler.step()
+
+
+        self.counter+=1
 
 
 
@@ -230,7 +233,7 @@ if __name__ == "__main__":
     # Convert to Dataset
     cifar100 = torch.utils.data.TensorDataset(torch.stack([x[0] for x in cifar100]))
     # Convert to dataloader
-    cifar100 = torch.utils.data.DataLoader(cifar100, batch_size=500, shuffle=True, num_workers=8, pin_memory=True, persistent_workers=True)
+    cifar100 = torch.utils.data.DataLoader(cifar100, batch_size=100, shuffle=True, num_workers=8, pin_memory=True, persistent_workers=True)
     torch.set_float32_matmul_precision('medium')
 
     trainer.fit(ImprovedWassersteinGAN(Generator(depth=7), Discriminator(depth=8,image_size=(32,32))), cifar100)
