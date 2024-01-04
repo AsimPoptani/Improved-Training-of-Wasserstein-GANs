@@ -153,7 +153,7 @@ class ImprovedWassersteinGAN(L.LightningModule):
             dis_optimizer.zero_grad()
             dis_loss.backward()
             dis_optimizer.step()
-            self.logger.log_metrics({"dis_loss":dis_loss},self.counter)
+            # self.logger.log_metrics({"dis_loss":dis_loss},self.counter)
             self.log("dis_loss", dis_loss, True,False)
 
 
@@ -164,7 +164,7 @@ class ImprovedWassersteinGAN(L.LightningModule):
         gan_optimizer.zero_grad()
         gen_loss.backward()
         gan_optimizer.step()
-        self.logger.log_metrics({"gen_loss": gen_loss}, self.counter)
+        # self.logger.log_metrics({"gen_loss": gen_loss}, self.counter)
         self.log("gen_loss", gen_loss,True,False)
 
 
