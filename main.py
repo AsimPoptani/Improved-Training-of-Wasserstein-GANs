@@ -225,7 +225,7 @@ if __name__ == "__main__":
         tensorboard_logger,
         wandb_logger,
     ],
-        profiler="advanced",
+        precision=8,
         max_epochs=10,
     )
 
