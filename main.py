@@ -232,7 +232,7 @@ if __name__ == "__main__":
     cifar100 = torch.utils.data.Subset(cifar100, [i for i in range(len(cifar100)) if cifar100[i][1] == 98])
 
     # Move to GPU
-    cifar100 = torch.utils.data.TensorDataset(torch.stack([x[0] for x in cifar100]).cuda())
+    cifar100 = torch.utils.data.TensorDataset(torch.stack([x.cuda()[0] for x in cifar100]))
 
     # Convert to dataloader
     cifar100 = torch.utils.data.DataLoader(cifar100, batch_size=500, shuffle=True, num_workers=8, pin_memory=True, persistent_workers=True)
