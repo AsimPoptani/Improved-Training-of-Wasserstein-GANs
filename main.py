@@ -153,7 +153,7 @@ class ImprovedWassersteinGAN(L.LightningModule):
             dis_optimizer.zero_grad()
             dis_loss.backward()
             dis_optimizer.step()
-            self.logger.log_metrics({"dis_loss":dis_loss},self.global_step)
+            self.logger.log_metrics({"dis_loss":dis_loss},self.counter)
             self.log("dis_loss", dis_loss, True,False)
 
 
@@ -164,7 +164,7 @@ class ImprovedWassersteinGAN(L.LightningModule):
         gan_optimizer.zero_grad()
         gen_loss.backward()
         gan_optimizer.step()
-        self.logger.log_metrics({"gen_loss": gen_loss}, self.global_step)
+        self.logger.log_metrics({"gen_loss": gen_loss}, self.counter)
         self.log("gen_loss", gen_loss,True,False)
 
 
@@ -174,10 +174,14 @@ class ImprovedWassersteinGAN(L.LightningModule):
                 self.test_noise=self.test_noise.to(self.device)
 
                 test_images=self.generator(self.test_noise)
+
+                # Put the test images on the cpu at 32 bit float
+                test_images=test_images.cpu().float()
+
                 # Create a grid of images
                 grid=torchvision.utils.make_grid(test_images,nrow=10)
                 # Image to tensorboard
-                self.logger.experiment.add_image("fake_image",grid,self.global_step)
+                self.logger.experiment.add_image("fake_image",grid,self.counter)
 
         if self.counter % 5 == 0:
             # Schedule the learning rate
