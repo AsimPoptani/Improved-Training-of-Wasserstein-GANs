@@ -236,7 +236,7 @@ if __name__ == "__main__":
         # wandb_logger,
     ],
         precision='bf16-mixed',
-        max_epochs=10000,
+        max_epochs=-1,
         # accelerator="cpu"
     )
 
