@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader,IterableDataset
 from lightning.pytorch.utilities.types import OptimizerLRScheduler
 from lightning.pytorch.loggers import TensorBoardLogger
 from pytorch_lightning.loggers import WandbLogger
-import wandb
+# import wandb
 
 
 class LayerNormHelper(L.LightningModule):
@@ -102,7 +102,7 @@ class ImprovedWassersteinGAN(L.LightningModule):
         self.test_noise=torch.randn(self.noise_size(100),device=self.device,requires_grad=False,dtype=self.dtype)
 
 
-    def improved_wasserstein_loss(self,fake_scores, interpolated_scores,interpolated_images,lambda_=10):
+    def improved_wasserstein_loss(self,fake_scores, scores, interpolated_scores,interpolated_images,lambda_=10):
         differentiation=torch.autograd.grad(
             outputs=interpolated_scores,
             inputs=interpolated_images,
@@ -116,7 +116,7 @@ class ImprovedWassersteinGAN(L.LightningModule):
         gradients=gradients.norm(2,dim=1)
         gradient_loss=lambda_ * torch.pow((gradients - 1),2).view(-1,1)
 
-        return fake_scores-interpolated_scores+gradient_loss
+        return fake_scores-scores+gradient_loss
 
 
 
@@ -132,31 +132,36 @@ class ImprovedWassersteinGAN(L.LightningModule):
         for _ in range(10):
             # Create random noise for the generator at size batch
             noise=torch.randn(self.noise_size(batch_size=batch[0].shape[0]),device=self.device, dtype=self.dtype)
+
+
             # Generate fake images
             fake_images=self.generator(noise)
-            # Discriminate fake images
+
+        #     # Discriminate fake images
             fake_scores=self.discriminator(fake_images)
-            # Create alpha with size batch, 1
-            alpha=torch.rand(batch[0].shape[0],1,1,1,device=self.device, dtype=self.dtype)
-            # Create interpolated images
+        #     # Create alpha with size batch, 1
+            alpha=torch.randn(batch[0].shape[0],1,1,1,device=self.device, dtype=self.dtype)
+        #     # Create interpolated images
             interpolated_images=(alpha*batch[0]+(1-alpha)*fake_images).requires_grad_(True)
-            # Discriminate the interpolated images
+        #     # Discriminate the interpolated images
             interpolated_scores=self.discriminator(interpolated_images)
-            # Calculate the loss
+            scores=self.discriminator(fake_images)
+        #     # Calculate the loss
             dis_loss=self.improved_wasserstein_loss(
                 fake_scores=fake_scores,
                 interpolated_scores=interpolated_scores,
-                interpolated_images=interpolated_images
+                interpolated_images=interpolated_images,
+                scores=scores
             ).mean()
-
-            # Update the discriminator
+        #
+        #     # Update the discriminator
             dis_optimizer.zero_grad()
             dis_loss.backward()
             dis_optimizer.step()
-            # self.logger.log_metrics({"dis_loss":dis_loss},self.counter)
+            self.logger.log_metrics({"dis_loss":dis_loss},self.counter)
             self.log("dis_loss", dis_loss, True,False)
-
-
+        #
+        #
         noise = torch.randn(self.noise_size(batch_size=batch[0].shape[0]),device=self.device, dtype=self.dtype)
         fake_images = self.generator(noise)
         fake_scores = self.discriminator(fake_images)
@@ -164,7 +169,7 @@ class ImprovedWassersteinGAN(L.LightningModule):
         gan_optimizer.zero_grad()
         gen_loss.backward()
         gan_optimizer.step()
-        # self.logger.log_metrics({"gen_loss": gen_loss}, self.counter)
+        self.logger.log_metrics({"gen_loss": gen_loss}, self.counter)
         self.log("gen_loss", gen_loss,True,False)
 
 
@@ -197,8 +202,8 @@ class ImprovedWassersteinGAN(L.LightningModule):
 
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
-        gan_optimizer = torch.optim.SGD(self.generator.parameters(), lr=1e-4, momentum=0.09)
-        dis_optimizer = torch.optim.SGD(self.discriminator.parameters(), lr=1e-4, momentum=0.09)
+        gan_optimizer = torch.optim.Adam(self.generator.parameters(), lr=1e-2,)
+        dis_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=1e-2,)
         milestones=[100,400,1600,3200,6400]
 
         # Gan scheduler
@@ -211,7 +216,7 @@ class ImprovedWassersteinGAN(L.LightningModule):
 
 
 if __name__ == "__main__":
-    wandb.login()
+    # wandb.login()
 
     transforms=torchvision.transforms.Compose([
         torchvision.transforms.PILToTensor(),
@@ -222,15 +227,16 @@ if __name__ == "__main__":
     ])
 
     tensorboard_logger = TensorBoardLogger('logs/')
-    wandb_logger = WandbLogger(project="Improved Training of Wasserstein GANs")
+    # wandb_logger = WandbLogger(project="Improved Training of Wasserstein GANs")
 
     cifar100=torchvision.datasets.CIFAR100('./train/', download=True, train=True, transform=transforms)
     trainer = L.Trainer(logger=[
         tensorboard_logger,
-        wandb_logger,
+        # wandb_logger,
     ],
         precision='bf16-mixed',
-        max_epochs=10,
+        max_epochs=10000,
+        # accelerator="cpu"
     )
 
     # Get one class from cifar100
@@ -243,7 +249,7 @@ if __name__ == "__main__":
     cifar100 = torch.utils.data.DataLoader(cifar100, batch_size=500, shuffle=True, num_workers=8, pin_memory=True, persistent_workers=True)
     torch.set_float32_matmul_precision('medium')
 
-    trainer.fit(ImprovedWassersteinGAN(Generator(depth=7), Discriminator(depth=8,image_size=(32,32))), cifar100)
+    trainer.fit(ImprovedWassersteinGAN(Generator(depth=6), Discriminator(depth=7,image_size=(32,32))), cifar100)
 
 
 
