@@ -190,9 +190,10 @@ class ImprovedWassersteinGAN(L.LightningModule):
 
         if self.counter % 5 == 0:
             # Schedule the learning rate
-            gan_scheduler, dis_scheduler = self.lr_schedulers()
-            gan_scheduler.step()
-            dis_scheduler.step()
+            # gan_scheduler, dis_scheduler = self.lr_schedulers()
+            # gan_scheduler.step()
+            # dis_scheduler.step()
+            pass
 
 
         self.counter+=1
