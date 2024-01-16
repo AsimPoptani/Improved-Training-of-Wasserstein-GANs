@@ -144,7 +144,7 @@ class ImprovedWassersteinGAN(L.LightningModule):
         while loop_range>0 or dis_loss>0.1:
             loop_range-=1
             # Create random noise for the generator at size batch
-            noise=torch.randn(self.noise_size(batch_size=batch[0].shape[0]),device=self.device, dtype=self.dtype)
+            noise=torch.randn(self.noise_size(batch_size=batch.shape[0]),device=self.device, dtype=self.dtype)
 
 
             # Generate fake images
@@ -153,12 +153,12 @@ class ImprovedWassersteinGAN(L.LightningModule):
         #     # Discriminate fake images
             fake_scores=self.discriminator(fake_images)
         #     # Create alpha with size batch, 1
-            alpha=torch.randn(batch[0].shape[0],1,1,1,device=self.device, dtype=self.dtype)
+            alpha=torch.randn(batch.shape[0],1,1,1,device=self.device, dtype=self.dtype)
         #     # Create interpolated images
-            interpolated_images=(alpha*batch[0]+(1-alpha)*fake_images).requires_grad_(True)
+            interpolated_images=(alpha*batch+(1-alpha)*fake_images).requires_grad_(True)
         #     # Discriminate the interpolated images
             interpolated_scores=self.discriminator(interpolated_images)
-            scores=self.discriminator(batch[0])
+            scores=self.discriminator(batch)
         #     # Calculate the loss
             dis_loss=self.improved_wasserstein_loss(
                 fake_scores=fake_scores,
@@ -175,7 +175,7 @@ class ImprovedWassersteinGAN(L.LightningModule):
             self.log("dis_loss", dis_loss, True,False)
         #
         #
-        noise = torch.randn(self.noise_size(batch_size=batch[0].shape[0]),device=self.device, dtype=self.dtype)
+        noise = torch.randn(self.noise_size(batch_size=batch.shape[0]),device=self.device, dtype=self.dtype)
         fake_images = self.generator(noise)
         fake_scores = self.discriminator(fake_images)
         gen_loss = -torch.mean(fake_scores)
@@ -250,7 +250,7 @@ if __name__ == "__main__":
     ],
         # precision='bf16-mixed',
         max_epochs=-1,
-        # accelerator="cpu"
+        accelerator="cpu",
         enable_checkpointing=False,
     )
 
@@ -270,7 +270,7 @@ if __name__ == "__main__":
     # cifar100 = torch.utils.data.DataLoader(cifar100, batch_size=500, shuffle=True, num_workers=8, pin_memory=True, persistent_workers=True)
     torch.set_float32_matmul_precision('medium')
 
-    trainer.fit(ImprovedWassersteinGAN(Generator(depth=5), Discriminator(depth=7,image_size=(32,32))), cifar100)
+    trainer.fit(ImprovedWassersteinGAN(Generator(depth=3), Discriminator(depth=4,image_size=(32,32))), cifar100)
 
 
 
