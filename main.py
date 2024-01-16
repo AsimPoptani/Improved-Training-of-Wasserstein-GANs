@@ -270,7 +270,7 @@ if __name__ == "__main__":
     # cifar100 = torch.utils.data.DataLoader(cifar100, batch_size=500, shuffle=True, num_workers=8, pin_memory=True, persistent_workers=True)
     torch.set_float32_matmul_precision('medium')
 
-    trainer.fit(ImprovedWassersteinGAN(Generator(depth=8), Discriminator(depth=8,image_size=(32,32))), cifar100)
+    trainer.fit(ImprovedWassersteinGAN(Generator(depth=5), Discriminator(depth=5,image_size=(32,32))), cifar100)
 
 
 
