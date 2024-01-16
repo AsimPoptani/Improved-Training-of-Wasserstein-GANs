@@ -127,9 +127,10 @@ class ImprovedWassersteinGAN(L.LightningModule):
 
 
 
-
-
-        for _ in range(10):
+        dis_loss=1
+        loop_range=10
+        while loop_range>0 and dis_loss>0.1:
+            loop_range-=1
             # Create random noise for the generator at size batch
             noise=torch.randn(self.noise_size(batch_size=batch[0].shape[0]),device=self.device, dtype=self.dtype)
 
