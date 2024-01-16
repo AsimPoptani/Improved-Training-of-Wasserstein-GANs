@@ -203,8 +203,8 @@ class ImprovedWassersteinGAN(L.LightningModule):
 
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
-        gan_optimizer = torch.optim.SGD(self.generator.parameters(), lr=1e-5, momentum=0.9)
-        dis_optimizer = torch.optim.SGD(self.discriminator.parameters(), lr=1e-5, momentum=0.9)
+        gan_optimizer = torch.optim.SGD(self.generator.parameters(), lr=1e-5, momentum=1e-3)
+        dis_optimizer = torch.optim.SGD(self.discriminator.parameters(), lr=1e-5, momentum=1e-3)
         # milestones=[100,400,1600,3200,6400]
         #
         # # Gan scheduler
