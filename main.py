@@ -235,7 +235,7 @@ if __name__ == "__main__":
         tensorboard_logger,
         # wandb_logger,
     ],
-        precision='bf16-mixed',
+        # precision='bf16-mixed',
         max_epochs=-1,
         # accelerator="cpu"
     )
@@ -244,10 +244,10 @@ if __name__ == "__main__":
     cifar100 = torch.utils.data.Subset(cifar100, [i for i in range(len(cifar100)) if cifar100[i][1] == 98])
 
     # Move to GPU
-    cifar100 = torch.utils.data.TensorDataset(torch.stack([x[0] for x in cifar100]))
+    cifar100 = torch.stack([x[0] for x in cifar100]).to('cuda:0')
 
     # Convert to dataloader
-    cifar100 = torch.utils.data.DataLoader(cifar100, batch_size=100, shuffle=True, num_workers=8, pin_memory=True, persistent_workers=True)
+    # cifar100 = torch.utils.data.DataLoader(cifar100, batch_size=500, shuffle=True, num_workers=8, pin_memory=True, persistent_workers=True)
     torch.set_float32_matmul_precision('medium')
 
     trainer.fit(ImprovedWassersteinGAN(Generator(depth=7), Discriminator(depth=8,image_size=(32,32))), cifar100)
