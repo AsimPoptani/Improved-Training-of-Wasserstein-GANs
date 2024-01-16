@@ -203,8 +203,8 @@ class ImprovedWassersteinGAN(L.LightningModule):
 
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
-        gan_optimizer = torch.optim.Adam(self.generator.parameters(), lr=1e-5)
-        dis_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=1e-5)
+        gan_optimizer = torch.optim.Adam(self.generator.parameters(), lr=1e-3)
+        dis_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=1e-3)
         # milestones=[100,400,1600,3200,6400]
         #
         # # Gan scheduler
@@ -250,7 +250,7 @@ if __name__ == "__main__":
     cifar100 = torch.utils.data.DataLoader(cifar100, batch_size=100, shuffle=True, num_workers=8, pin_memory=True, persistent_workers=True)
     torch.set_float32_matmul_precision('medium')
 
-    trainer.fit(ImprovedWassersteinGAN(Generator(depth=3), Discriminator(depth=4,image_size=(32,32))), cifar100)
+    trainer.fit(ImprovedWassersteinGAN(Generator(depth=7), Discriminator(depth=8,image_size=(32,32))), cifar100)
 
 
 
