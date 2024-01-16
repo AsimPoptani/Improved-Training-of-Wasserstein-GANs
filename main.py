@@ -257,10 +257,18 @@ if __name__ == "__main__":
     # Get one class from cifar100
     cifar100 = torch.utils.data.Subset(cifar100, [i for i in range(len(cifar100)) if cifar100[i][1] == 98])
 
-    # Move to GPU
+
     cifar100 = torch.stack([x[0] for x in cifar100])
     cifar100 = cifar100.unsqueeze(0)
 
+    # Batch size
+    batch_size = 50
+
+    # Resize to match the batch size
+    cifar100 = cifar100.reshape((cifar100.shape[1]//batch_size,batch_size, 3, 32, 32))
+
+
+    # Move to GPU
     if torch.cuda.is_available():
         cifar100 = cifar100.to('cuda:0')
 
@@ -270,7 +278,7 @@ if __name__ == "__main__":
     # cifar100 = torch.utils.data.DataLoader(cifar100, batch_size=500, shuffle=True, num_workers=8, pin_memory=True, persistent_workers=True)
     torch.set_float32_matmul_precision('medium')
 
-    trainer.fit(ImprovedWassersteinGAN(Generator(depth=3), Discriminator(depth=4,image_size=(32,32))), cifar100)
+    trainer.fit(ImprovedWassersteinGAN(Generator(depth=5), Discriminator(depth=6,image_size=(32,32))), cifar100)
 
 
 
