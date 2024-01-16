@@ -251,6 +251,7 @@ if __name__ == "__main__":
         # precision='bf16-mixed',
         max_epochs=-1,
         # accelerator="cpu"
+        enable_checkpointing=False,
     )
 
     # Get one class from cifar100
