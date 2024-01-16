@@ -145,7 +145,7 @@ class ImprovedWassersteinGAN(L.LightningModule):
             interpolated_images=(alpha*batch[0]+(1-alpha)*fake_images).requires_grad_(True)
         #     # Discriminate the interpolated images
             interpolated_scores=self.discriminator(interpolated_images)
-            scores=self.discriminator(fake_images)
+            scores=self.discriminator(batch[0])
         #     # Calculate the loss
             dis_loss=self.improved_wasserstein_loss(
                 fake_scores=fake_scores,
