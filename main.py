@@ -140,7 +140,7 @@ class ImprovedWassersteinGAN(L.LightningModule):
 
 
         dis_loss=1
-        loop_range=5
+        loop_range=25
         while loop_range>0 or dis_loss>0.1:
             loop_range-=1
             # Create random noise for the generator at size batch
