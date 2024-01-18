@@ -254,7 +254,7 @@ if __name__ == "__main__":
         # wandb_logger,
     ],
         max_epochs=-1,
-        accelerator="cpu",
+        # accelerator="cpu",
         enable_checkpointing=False,
     )
 
